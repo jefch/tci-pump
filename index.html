@@ -87,6 +87,25 @@
         3px 3px 0px #78350f;
     }
 
+    /* Active Checkpoint Highlight Pulse */
+    @keyframes checkpointPulse {
+      0%, 100% {
+        box-shadow: 0 0 0 2px #000, 0 0 12px rgba(57, 255, 20, 0.85);
+        transform: translateY(-1px);
+      }
+      50% {
+        box-shadow: 0 0 0 2px #000, 0 0 4px rgba(57, 255, 20, 0.3);
+        transform: translateY(0px);
+      }
+    }
+
+    .active-checkpoint-block {
+      background: #39ff14 !important;
+      color: #000 !important;
+      border: 2px solid #fff !important;
+      animation: checkpointPulse 1.4s infinite;
+    }
+
     /* Custom Range Slider 8-bit */
     input[type=range].pixel-slider {
       -webkit-appearance: none;
@@ -158,7 +177,7 @@
 
   <main class="max-w-7xl mx-auto px-2.5 sm:px-5 pt-3 space-y-3">
 
-    <!-- COMPACT PATIENT & SETUP SUMMARY BAR (Shown when setup is collapsed so user sees ACTIVE PUMPS immediately without scrolling) -->
+    <!-- COMPACT PATIENT & SETUP SUMMARY BAR -->
     <div id="compactSetupBar" class="hidden pixel-box p-2.5 bg-[#121824] border-[#f59e0b]">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-2 flex-wrap">
@@ -173,10 +192,10 @@
       </div>
     </div>
 
-    <!-- COLLAPSIBLE SETUP CONTAINER (PATIENT INFO + DRUG QUANTITY SELECTOR) -->
+    <!-- COLLAPSIBLE SETUP CONTAINER -->
     <div id="setupContainer" class="space-y-3">
 
-      <!-- STEP 1: PATIENT DEMOGRAPHICS PANEL (NO BLINKING GREEN LED) -->
+      <!-- STEP 1: PATIENT DEMOGRAPHICS PANEL -->
       <section class="pixel-box p-3 sm:p-4">
         <div class="flex items-center justify-between mb-2">
           <h2 class="font-pixel-en text-xs text-[#39ff14] tracking-wide">PATIENT // 病人基本資料</h2>
@@ -280,7 +299,7 @@
         </div>
       </div>
 
-      <!-- Empty State (Initial Screen is Blank / Empty) -->
+      <!-- Empty State -->
       <div id="emptyPumpState" class="pixel-box p-8 sm:p-10 text-center">
         <div class="font-pixel-en text-sm sm:text-base text-[#94a3b8] mb-1.5">NO ACTIVE PUMPS</div>
         <p class="text-xs sm:text-sm text-[#64748b]">目前幫浦列表為空白，請於上方選擇藥物數量後點擊「確認」</p>
@@ -328,6 +347,8 @@
     // =========================================================================
     // DRUG CATALOG (NO CHINESE DRUG NAMES)
     // =========================================================================
+    const TIME_CHECKPOINTS = [15, 30, 45, 60, 90, 120, 180];
+
     const DRUG_CATALOG = {
       propofol: {
         id: 'propofol',
@@ -338,6 +359,7 @@
         modelName: 'Schnider',
         mode: 'tci_ce',
         concUnit: 'mg/mL',
+        massUnit: 'mg',
         defaultConc: 10,
         concPresets: [
           { label: '10', val: 10 }
@@ -363,6 +385,7 @@
         modelName: 'Minto',
         mode: 'tci_ce',
         concUnit: 'mcg/mL',
+        massUnit: 'mcg',
         defaultConc: 50,
         concPresets: [
           { label: '50', val: 50 },
@@ -389,6 +412,7 @@
         modelName: 'Maitre',
         mode: 'tci_ce',
         concUnit: 'mcg/mL',
+        massUnit: 'mcg',
         defaultConc: 100,
         concPresets: [
           { label: '100', val: 100 },
@@ -415,6 +439,7 @@
         modelName: 'Maintenance',
         mode: 'nmbd_maint',
         concUnit: 'mg/mL',
+        massUnit: 'mg',
         defaultConc: 10,
         concPresets: [
           { label: '10', val: 10 },
@@ -441,6 +466,7 @@
         modelName: 'Maintenance',
         mode: 'nmbd_maint',
         concUnit: 'mg/mL',
+        massUnit: 'mg',
         defaultConc: 2,
         concPresets: [
           { label: '2', val: 2 },
@@ -467,6 +493,7 @@
         modelName: 'Hannivoort',
         mode: 'tci_ce',
         concUnit: 'mcg/mL',
+        massUnit: 'mcg',
         defaultConc: 4,
         concPresets: [
           { label: '4', val: 4 },
@@ -487,7 +514,7 @@
     };
 
     // =========================================================================
-    // STATE MANAGEMENT (Initial Active Pumps is EMPTY)
+    // STATE MANAGEMENT
     // =========================================================================
     const state = {
       patient: {
@@ -509,8 +536,56 @@
       setupCollapsed: false
     };
 
+    let globalTimerId = null;
+
     // =========================================================================
-    // ANTHROPOMETRIC & PHARMACOKINETIC ENGINE
+    // TIMER & CHECKPOINT HELPERS
+    // =========================================================================
+    function formatHms(totalSeconds) {
+      const sec = Math.max(0, Math.floor(totalSeconds));
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = sec % 60;
+      const pad = n => String(n).padStart(2, '0');
+      return `${pad(h)}時 ${pad(m)}分 ${pad(s)}秒`;
+    }
+
+    function getPumpTotalElapsedSec(pump) {
+      if (!pump.started) return 0;
+      const priorSec = (pump.history || []).reduce((acc, seg) => acc + seg.durationSec, 0);
+      const currentStageSec = getPumpStageElapsedSec(pump);
+      return priorSec + currentStageSec;
+    }
+
+    function getPumpStageElapsedSec(pump) {
+      if (!pump.started) return 0;
+      const liveDeltaSec = pump.stageStartMs ? Math.floor((Date.now() - pump.stageStartMs) / 1000) : 0;
+      return Math.max(0, (pump.stageOffsetSec || 0) + liveDeltaSec);
+    }
+
+    /**
+     * Given elapsed minutes in current stage, determine which checkpoint block (15, 30, 45, 60, 90, 120, 180)
+     * should be highlighted.
+     * - 0 <= min < 30 -> 15m
+     * - 30 <= min < 45 -> 30m ("例如30分鐘到了，30分鐘的建議流速的色塊會變化提醒")
+     * - 45 <= min < 60 -> 45m
+     * - 60 <= min < 90 -> 60m
+     * - 90 <= min < 120 -> 90m
+     * - 120 <= min < 180 -> 120m (2hr)
+     * - min >= 180 -> 180m (3hr)
+     */
+    function getAutoCheckpointForMinutes(stageMin) {
+      if (stageMin >= 180) return 180;
+      if (stageMin >= 120) return 120;
+      if (stageMin >= 90) return 90;
+      if (stageMin >= 60) return 60;
+      if (stageMin >= 45) return 45;
+      if (stageMin >= 30) return 30;
+      return 15;
+    }
+
+    // =========================================================================
+    // ANTHROPOMETRIC & 3-COMPARTMENT iTIVA ENGINE
     // =========================================================================
     function getAnthropometrics(p) {
       let lbmRaw;
@@ -540,7 +615,8 @@
         const k13 = 0.196;
         const k21 = Math.max(0.01, (1.29 - 0.024 * (age - 53)) / V2);
         const k31 = 0.0035;
-        return { V1, V2, V3, k10, k12, k21, k13, k31 };
+        const ke0 = 0.456;
+        return { V1, V2, V3, k10, k12, k21, k13, k31, ke0, tPeak: 1.69 };
       }
 
       if (drugId === 'remifentanil') {
@@ -555,7 +631,8 @@
         const k21 = Cl2 / V2;
         const k13 = Cl3 / V1;
         const k31 = Cl3 / V3;
-        return { V1, V2, V3, k10, k12, k21, k13, k31 };
+        const ke0 = Math.max(0.15, 0.595 - 0.007 * (age - 40));
+        return { V1, V2, V3, k10, k12, k21, k13, k31, ke0, tPeak: 1.5 };
       }
 
       if (drugId === 'alfentanil') {
@@ -569,7 +646,8 @@
         const k10 = Cl1 / V1;
         const V2 = V1 * (k12 / k21);
         const V3 = V1 * (k13 / k31);
-        return { V1, V2, V3, k10, k12, k21, k13, k31 };
+        const ke0 = 0.77;
+        return { V1, V2, V3, k10, k12, k21, k13, k31, ke0, tPeak: 1.4 };
       }
 
       if (drugId === 'precedex') {
@@ -586,37 +664,191 @@
         const k21 = Cl2 / V2;
         const k13 = Cl3 / V1;
         const k31 = Cl3 / V3;
-        return { V1, V2, V3, k10, k12, k21, k13, k31 };
+        const ke0 = 0.077;
+        return { V1, V2, V3, k10, k12, k21, k13, k31, ke0, tPeak: 8.0 };
       }
 
       return null;
     }
 
+    function simulateDecrementPause(pk, oldCe, newCe, startC2, startC3) {
+      let c1 = oldCe;
+      let c2 = startC2;
+      let c3 = startC3;
+      let ce = oldCe;
+      const dt = 0.05;
+      let t = 0;
+      const maxMin = 240;
+
+      while (ce > newCe && t < maxMin) {
+        const dc1 = (-pk.k10 * c1 + pk.k12 * (c2 - c1) + pk.k13 * (c3 - c1)) * dt;
+        const dc2 = (pk.k21 * (c1 - c2)) * dt;
+        const dc3 = (pk.k31 * (c1 - c3)) * dt;
+        const dce = (pk.ke0 * (c1 - ce)) * dt;
+        c1 = Math.max(0, c1 + dc1);
+        c2 = Math.max(0, c2 + dc2);
+        c3 = Math.max(0, c3 + dc3);
+        ce = Math.max(0, ce + dce);
+        t += dt;
+      }
+
+      return {
+        pauseMin: t,
+        c2AfterPause: c2,
+        c3AfterPause: c3
+      };
+    }
+
+    function advanceTissueState(pk, targetCe, durationMin, startC2, startC3) {
+      const c2 = targetCe + (startC2 - targetCe) * Math.exp(-pk.k21 * durationMin);
+      const c3 = targetCe + (startC3 - targetCe) * Math.exp(-pk.k31 * durationMin);
+      return { c2, c3 };
+    }
+
+    function computeRateMlHrAt(pk, conc, targetCe, deltaMin, baseC2, baseC3) {
+      const { c2, c3 } = advanceTissueState(pk, targetCe, deltaMin, baseC2, baseC3);
+      const rateMassPerMin = pk.V1 * (
+        pk.k10 * targetCe +
+        pk.k12 * (targetCe - c2) +
+        pk.k13 * (targetCe - c3)
+      );
+      return Math.max(0, (rateMassPerMin * 60) / conc);
+    }
+
     function calculatePumpOutput(pump, patient, anthro) {
       const spec = DRUG_CATALOG[pump.drugId];
       const conc = Math.max(0.01, parseFloat(pump.conc) || spec.defaultConc);
-      const target = Math.max(0.01, parseFloat(pump.target) || spec.defaultTarget);
+      const confirmedTarget = Math.max(0.01, parseFloat(pump.confirmedTarget) || spec.defaultTarget);
 
       if (spec.mode === 'tci_ce') {
         const pk = getPkModelParams(pump.drugId, patient, anthro);
-        const centralMass = target * pk.V1;
-        const rateMassPerMin = centralMass * (
-          pk.k10 +
-          pk.k12 * Math.exp(-pk.k21 * 25) +
-          pk.k13 * Math.exp(-pk.k31 * 25)
-        );
-        const activeMlHr = (rateMassPerMin * 60) / conc;
-        return { activeMlHr };
+
+        // Replay confirmed history segments
+        let baseC2 = 0;
+        let baseC3 = 0;
+        let priorTotalSec = 0;
+        let prevCe = 0;
+
+        if (pump.history && pump.history.length > 0) {
+          pump.history.forEach(seg => {
+            const segMin = seg.durationSec / 60;
+            const nextState = advanceTissueState(pk, seg.ce, segMin, baseC2, baseC3);
+            baseC2 = nextState.c2;
+            baseC3 = nextState.c3;
+            priorTotalSec += seg.durationSec;
+            prevCe = seg.ce;
+          });
+        }
+
+        const priorTotalMin = priorTotalSec / 60;
+        let transitionInfo = null;
+        let effectiveStartC2 = baseC2;
+        let effectiveStartC3 = baseC3;
+
+        if (pump.started) {
+          if (priorTotalSec === 0) {
+            const initBolusMass = confirmedTarget * pk.V1 * (1 + 0.65 * pk.k12 * pk.tPeak + 0.5 * pk.k10 * pk.tPeak);
+            const initBolusMl = initBolusMass / conc;
+            transitionInfo = {
+              type: 'initial',
+              bolusMl: initBolusMl,
+              bolusMass: initBolusMass
+            };
+          } else if (Math.abs(confirmedTarget - prevCe) >= 0.01) {
+            if (confirmedTarget > prevCe) {
+              const deltaCe = confirmedTarget - prevCe;
+              const stepBolusMass = deltaCe * pk.V1 * (1 + 0.55 * pk.k12 * pk.tPeak + 0.4 * pk.k10 * pk.tPeak);
+              const stepBolusMl = stepBolusMass / conc;
+              const baseMaintMlHr = computeRateMlHrAt(pk, conc, confirmedTarget, 2, baseC2, baseC3);
+              const boost2MinMlHr = baseMaintMlHr + (stepBolusMl * 30);
+              transitionInfo = {
+                type: 'step_up',
+                prevCe,
+                priorTotalMin: Math.round(priorTotalMin),
+                bolusMl: stepBolusMl,
+                bolusMass: stepBolusMass,
+                boost2MinMlHr
+              };
+            } else {
+              const pauseSim = simulateDecrementPause(pk, prevCe, confirmedTarget, baseC2, baseC3);
+              effectiveStartC2 = pauseSim.c2AfterPause;
+              effectiveStartC3 = pauseSim.c3AfterPause;
+              transitionInfo = {
+                type: 'step_down',
+                prevCe,
+                priorTotalMin: Math.round(priorTotalMin),
+                pauseMin: pauseSim.pauseMin
+              };
+            }
+          }
+        }
+
+        const stageElapsedSec = getPumpStageElapsedSec(pump);
+        const stageElapsedMin = stageElapsedSec / 60;
+        const activeCheckpointMin = getAutoCheckpointForMinutes(stageElapsedMin);
+        pump.lastAutoCheckpoint = activeCheckpointMin;
+
+        const activeMlHr = computeRateMlHrAt(pk, conc, confirmedTarget, activeCheckpointMin, effectiveStartC2, effectiveStartC3);
+
+        const schedule = TIME_CHECKPOINTS.map(tMin => ({
+          tMin,
+          label: tMin >= 120 ? `${tMin / 60}hr` : `${tMin}m`,
+          mlHr: computeRateMlHrAt(pk, conc, confirmedTarget, tMin, effectiveStartC2, effectiveStartC3)
+        }));
+
+        return {
+          mode: 'tci_ce',
+          activeMlHr,
+          activeCheckpointMin,
+          stageElapsedSec,
+          totalElapsedSec: priorTotalSec + stageElapsedSec,
+          schedule,
+          transitionInfo
+        };
       } else {
         let activeMassHr = 0;
         if (pump.drugId === 'rocuronium') {
-          activeMassHr = target * patient.weight;
+          activeMassHr = confirmedTarget * patient.weight;
         } else if (pump.drugId === 'cisatracurium') {
-          activeMassHr = (target * patient.weight * 60) / 1000;
+          activeMassHr = (confirmedTarget * patient.weight * 60) / 1000;
         }
         const activeMlHr = activeMassHr / conc;
-        return { activeMlHr };
+        return {
+          mode: 'nmbd_maint',
+          activeMlHr,
+          totalElapsedSec: getPumpTotalElapsedSec(pump)
+        };
       }
+    }
+
+    /**
+     * Confirm button handler for a single pump:
+     * - Starts timer on first confirmation
+     * - Or commits previous stage duration & Ce into history and calculates transition plan for new Ce
+     */
+    function confirmPumpTarget(pump) {
+      if (!pump.started) {
+        pump.started = true;
+        pump.confirmedTarget = pump.target;
+        pump.stageStartMs = Date.now();
+        pump.stageOffsetSec = 0;
+        pump.lastAutoCheckpoint = 15;
+      } else {
+        const elapsedStageSec = getPumpStageElapsedSec(pump);
+        if (Math.abs(pump.target - pump.confirmedTarget) >= 0.001) {
+          // Record previous Ce and its accumulated time (minimum 60s if confirmed during a run so history is captured)
+          const recordedSec = Math.max(60, elapsedStageSec);
+          pump.history.push({
+            ce: pump.confirmedTarget,
+            durationSec: recordedSec
+          });
+          pump.confirmedTarget = pump.target;
+          pump.stageStartMs = Date.now();
+          pump.stageOffsetSec = 0;
+          pump.lastAutoCheckpoint = 15;
+        }
+      }
+      renderAll();
     }
 
     // =========================================================================
@@ -636,8 +868,15 @@
             nextPumps.push({
               instanceId: state.nextInstanceId++,
               drugId: spec.id,
+              mode: spec.mode,
               conc: spec.defaultConc,
-              target: spec.defaultTarget
+              target: spec.defaultTarget,
+              confirmedTarget: spec.defaultTarget,
+              started: false,
+              stageStartMs: null,
+              stageOffsetSec: 0,
+              lastAutoCheckpoint: 15,
+              history: []
             });
           }
         }
@@ -657,6 +896,40 @@
       state.pumps = [];
       state.setupCollapsed = false;
       renderAll();
+    }
+
+    // =========================================================================
+    // REAL-TIME 1-SECOND TICKER (Updates HH:MM:SS & Auto-Jumps Checkpoints)
+    // =========================================================================
+    function startGlobalTicker() {
+      if (globalTimerId) clearInterval(globalTimerId);
+      globalTimerId = setInterval(() => {
+        let needsFullReRender = false;
+
+        state.pumps.forEach(pump => {
+          if (!pump.started) return;
+          const totalSec = getPumpTotalElapsedSec(pump);
+          const timerEl = document.querySelector(`[data-timer-display="${pump.instanceId}"]`);
+          if (timerEl) {
+            timerEl.textContent = formatHms(totalSec);
+          }
+
+          if (pump.mode === 'tci_ce') {
+            const stageMin = getPumpStageElapsedSec(pump) / 60;
+            const nextCp = getAutoCheckpointForMinutes(stageMin);
+            if (nextCp !== pump.lastAutoCheckpoint) {
+              pump.lastAutoCheckpoint = nextCp;
+              needsFullReRender = true;
+            }
+          }
+        });
+
+        if (needsFullReRender) {
+          playBeep(880, 0.12, 'square');
+          const anthro = getAnthropometrics(state.patient);
+          renderPumpRack(anthro);
+        }
+      }, 1000);
     }
 
     // =========================================================================
@@ -703,14 +976,12 @@
           card.style.boxShadow = 'inset 0 0 12px rgba(245, 158, 11, 0.2)';
         }
 
-        // Drug Name moved to top, Ce/MAINT badge removed
         card.innerHTML = `
           <div>
             <div class="font-bold text-sm sm:text-base text-white truncate">${drug.name}</div>
             <div class="text-[11px] text-[#94a3b8] font-mono mt-0.5">${drug.defaultConc} ${drug.concUnit}</div>
           </div>
 
-          <!-- Quantity +/- Controls -->
           <div class="mt-2.5 pt-2 border-t border-[#263147] flex items-center justify-between gap-1">
             <button type="button" data-qty-action="dec" data-drug="${drug.id}"
               class="pixel-btn w-8 h-7 flex items-center justify-center text-sm font-black ${count > 0 ? 'bg-[#7f1d1d] text-white' : 'bg-[#1e293b] text-[#64748b]'}">
@@ -767,13 +1038,13 @@
       state.pumps.forEach((pump, idx) => {
         const spec = DRUG_CATALOG[pump.drugId];
         const calc = calculatePumpOutput(pump, state.patient, anthro);
+        const hasUnconfirmedChange = !pump.started || Math.abs(pump.target - pump.confirmedTarget) >= 0.001;
 
         const card = document.createElement('div');
         card.className = 'pixel-box flex flex-col justify-between overflow-hidden';
         card.style.borderTopWidth = '6px';
         card.style.borderTopColor = spec.isoColor;
 
-        // Concentration Presets HTML (Compact inline next to drug name)
         const concPresetsHtml = spec.concPresets.map(cp => {
           const isSelected = Math.abs(pump.conc - cp.val) < 0.001;
           return `
@@ -784,7 +1055,6 @@
           `;
         }).join('');
 
-        // Clinical Target Presets HTML
         const targetPresetsHtml = spec.clinicalPresets.map(tp => {
           const isSelected = Math.abs(pump.target - tp.val) < 0.001;
           return `
@@ -795,15 +1065,138 @@
           `;
         }).join('');
 
+        // Build Transition & Time-Based Schedule (Visible after first 確認濃度)
+        let confirmedDetailsHtml = '';
+
+        if (!pump.started) {
+          confirmedDetailsHtml = `
+            <div class="bg-[#0d131f] border-2 border-dashed border-[#3b465e] p-3 text-center text-xs text-[#94a3b8]">
+              請設定目標 ${spec.mode === 'tci_ce' ? 'Ce' : '維持劑量'} 後點擊上方 <strong class="text-[#39ff14]">「確認濃度」</strong>，即可啟動計時並顯示追加劑量／等待時間與分時段建議流速。
+            </div>
+          `;
+        } else if (calc.mode === 'tci_ce') {
+          let transitionBannerHtml = '';
+          if (calc.transitionInfo) {
+            if (calc.transitionInfo.type === 'initial') {
+              transitionBannerHtml = `
+                <div class="bg-[#132238] border-2 border-[#38bdf8] px-2.5 py-2 text-xs text-[#bae6fd] flex items-center justify-between gap-2">
+                  <span>💉 <strong>建議初劑量追加：${calc.transitionInfo.bolusMl.toFixed(1)} mL</strong> (${calc.transitionInfo.bolusMass.toFixed(1)} ${spec.massUnit})</span>
+                  <span class="text-[11px] text-[#7dd3fc]">給予後依下方色塊設定流速</span>
+                </div>
+              `;
+            } else if (calc.transitionInfo.type === 'step_up') {
+              transitionBannerHtml = `
+                <div class="bg-[#3b2506] border-2 border-[#f59e0b] px-2.5 py-2 text-xs text-[#fef08a] space-y-0.5">
+                  <div class="font-bold text-[#fbbf24]">🔼 調升 Ce (${calc.transitionInfo.prevCe} ➔ ${pump.confirmedTarget}) 建議追加：</div>
+                  <div>請追加 <strong>${calc.transitionInfo.bolusMl.toFixed(1)} mL</strong> (${calc.transitionInfo.bolusMass.toFixed(1)} ${spec.massUnit})，或以 <strong>${calc.transitionInfo.boost2MinMlHr.toFixed(1)} mL/hr</strong> 快推 2 分鐘後改設下方流速。</div>
+                </div>
+              `;
+            } else if (calc.transitionInfo.type === 'step_down') {
+              transitionBannerHtml = `
+                <div class="bg-[#06332b] border-2 border-[#10b981] px-2.5 py-2 text-xs text-[#a7f3d0] space-y-0.5">
+                  <div class="font-bold text-[#34d399]">⏸️ 調降 Ce (${calc.transitionInfo.prevCe} ➔ ${pump.confirmedTarget}) 建議等待時間：</div>
+                  <div>請先<strong>暫停輸注等待 ${calc.transitionInfo.pauseMin.toFixed(1)} 分鐘</strong>，待濃度降至目標後再設為下方流速。</div>
+                </div>
+              `;
+            }
+          }
+
+          const scheduleCellsHtml = calc.schedule.map(item => {
+            const isCurrent = calc.activeCheckpointMin === item.tMin;
+            return `
+              <button type="button" data-action="select-time" data-id="${pump.instanceId}" data-min="${item.tMin}"
+                title="點選可同步測試 ${item.label} 時間點"
+                class="p-1 border text-center transition-all ${isCurrent ? 'active-checkpoint-block' : 'bg-[#090d14] text-[#cbd5e1] border-[#263147] hover:border-[#f59e0b]'}">
+                <div class="text-[10px] ${isCurrent ? 'text-black font-black' : 'text-[#94a3b8]'}">${item.label}</div>
+                <div class="font-vt text-lg leading-tight ${isCurrent ? 'text-black font-black' : 'text-[#fde047]'}">${item.mlHr.toFixed(1)}</div>
+              </button>
+            `;
+          }).join('');
+
+          confirmedDetailsHtml = `
+            ${transitionBannerHtml}
+
+            <div class="bg-[#0b1019] border-2 border-[#263147] p-2.5 space-y-2">
+              <div class="flex items-center justify-between gap-1 flex-wrap">
+                <span class="text-[11px] font-bold text-[#39ff14]">⏱️ 隨時間變化建議流速 (時間到色塊自動跳轉提醒)</span>
+                <button type="button" data-action="reset-time" data-id="${pump.instanceId}"
+                  class="px-1.5 py-0.5 text-[10px] bg-[#1e293b] hover:bg-[#334155] text-[#cbd5e1] border border-[#475569] font-bold">
+                  ↺ 重置計時
+                </button>
+              </div>
+
+              <!-- 7 Checkpoints Grid: 15m, 30m, 45m, 60m, 90m, 2hr, 3hr -->
+              <div class="grid grid-cols-7 gap-1">
+                ${scheduleCellsHtml}
+              </div>
+
+              <div class="text-[10px] text-[#94a3b8] flex items-center justify-between gap-1">
+                <span>目前生效目標: <strong class="text-[#00f0ff]">Ce ${pump.confirmedTarget} ${spec.targetUnit}</strong></span>
+                <span class="text-[#86efac]">點選色塊可快轉測試時間</span>
+              </div>
+            </div>
+
+            <!-- HIGH-VISIBILITY GOLDEN/AMBER RECOMMENDED INFUSION RATE DISPLAY -->
+            <div class="rate-display-box p-3 flex items-center justify-between gap-2">
+              <div>
+                <span class="inline-block bg-[#f59e0b] text-black text-xs font-black px-2 py-0.5 border border-black">
+                  ⚡ 建議流速 (${calc.activeCheckpointMin >= 120 ? (calc.activeCheckpointMin / 60) + 'hr' : calc.activeCheckpointMin + 'm'})
+                </span>
+              </div>
+              <div class="flex items-baseline gap-1.5">
+                <span class="font-vt text-5xl sm:text-6xl font-black rate-number-glow leading-none">
+                  ${calc.activeMlHr.toFixed(1)}
+                </span>
+                <span class="bg-[#f59e0b] text-black font-pixel-en text-[10px] font-bold px-1.5 py-1 border border-black">
+                  mL/hr
+                </span>
+              </div>
+            </div>
+          `;
+        } else {
+          // Maintenance NMBD drugs after confirmation
+          confirmedDetailsHtml = `
+            <div class="rate-display-box p-3 flex items-center justify-between gap-2">
+              <div>
+                <span class="inline-block bg-[#f59e0b] text-black text-xs font-black px-2 py-0.5 border border-black">
+                  ⚡ 建議流速
+                </span>
+              </div>
+              <div class="flex items-baseline gap-1.5">
+                <span class="font-vt text-5xl sm:text-6xl font-black rate-number-glow leading-none">
+                  ${calc.activeMlHr.toFixed(1)}
+                </span>
+                <span class="bg-[#f59e0b] text-black font-pixel-en text-[10px] font-bold px-1.5 py-1 border border-black">
+                  mL/hr
+                </span>
+              </div>
+            </div>
+          `;
+        }
+
         card.innerHTML = `
-          <!-- Pump Top Header Bar: Drug Name + Concentration right beside it -->
-          <div class="px-3 py-2.5 bg-[#101622] border-b-2 border-[#2a3447] flex flex-wrap items-center justify-between gap-2">
+          <!-- TOPMOST BAR: Elapsed Pump Usage Timer (時、分、秒) -->
+          <div class="px-3 py-1.5 bg-[#070b12] border-b border-[#1e293b] flex items-center justify-between gap-2">
+            <div class="flex items-center gap-1.5">
+              <span class="inline-block w-2 h-2 ${pump.started ? 'bg-[#39ff14]' : 'bg-[#64748b]'}"></span>
+              <span class="text-[11px] font-bold text-[#94a3b8]">已使用時間：</span>
+              <span data-timer-display="${pump.instanceId}" class="font-vt text-xl tracking-wider ${pump.started ? 'text-[#39ff14] font-bold' : 'text-[#64748b]'}">
+                ${formatHms(calc.totalElapsedSec)}
+              </span>
+            </div>
+            <button type="button" data-action="remove-single-pump" data-id="${pump.instanceId}" title="移除此台幫浦"
+              class="pixel-btn bg-[#451a1a] hover:bg-[#7f1d1d] text-[#fca5a5] text-[11px] px-2 py-0 font-bold shrink-0">
+              ✕
+            </button>
+          </div>
+
+          <!-- Second Row: Drug Name + Concentration right beside it -->
+          <div class="px-3 py-2 bg-[#101622] border-b-2 border-[#2a3447] flex flex-wrap items-center justify-between gap-2">
             <div class="flex items-center gap-2 flex-wrap min-w-0">
               <span class="font-pixel-en text-[11px] px-1.5 py-0.5 border border-black font-bold shrink-0" style="background:${spec.isoColor}; color:#000;">
                 #${idx + 1}
               </span>
               <h3 class="font-bold text-base text-white">${spec.name}</h3>
-              <!-- Drug Concentration displayed right beside Drug Name -->
               <div class="flex items-center gap-1 bg-[#0b0f17] border border-[#2e3a52] px-1.5 py-0.5">
                 ${concPresetsHtml}
                 <input type="number" step="0.5" min="0.1" max="1000"
@@ -814,19 +1207,14 @@
                 <span class="text-[11px] text-[#94a3b8] font-mono">${spec.concUnit}</span>
               </div>
             </div>
-
-            <button type="button" data-action="remove-single-pump" data-id="${pump.instanceId}" title="移除此台幫浦"
-              class="pixel-btn bg-[#451a1a] hover:bg-[#7f1d1d] text-[#fca5a5] text-xs px-2 py-0.5 font-bold shrink-0">
-              ✕
-            </button>
           </div>
 
-          <!-- Pump Body: 1. Target Ce Controls (Moved UP) -> 2. Recommended Rate Display (Moved DOWN) -->
+          <!-- Pump Body -->
           <div class="p-3 flex-1 flex flex-col justify-between space-y-2.5">
 
-            <!-- 1. Target Ce / Target Dose Controls (Moved UP) -->
+            <!-- Target Ce / Target Dose Controls + 確認濃度 Button -->
             <div class="bg-[#0f1521] border-2 border-[#283347] p-2.5">
-              <div class="flex items-center justify-between mb-1">
+              <div class="flex items-center justify-between gap-1 mb-1 flex-wrap">
                 <span class="text-xs font-bold text-[#e2e8f0]">
                   🎯 ${spec.mode === 'tci_ce' ? `Ce (${spec.targetUnit})` : `維持劑量 (${spec.targetUnit})`}
                 </span>
@@ -836,7 +1224,7 @@
                   <input type="number" step="${spec.stepTarget}" min="${spec.minTarget}" max="${spec.maxTarget}"
                     data-action="input-target" data-id="${pump.instanceId}"
                     value="${pump.target}"
-                    class="w-18 bg-[#05080d] border-2 border-[#38bdf8] text-center font-vt text-2xl text-[#00f0ff] py-0" />
+                    class="w-16 bg-[#05080d] border-2 border-[#38bdf8] text-center font-vt text-2xl text-[#00f0ff] py-0" />
                   <button type="button" data-action="step-target" data-id="${pump.instanceId}" data-delta="${spec.stepTarget}"
                     class="pixel-btn bg-[#1e293b] text-white px-2.5 py-0.5 text-sm font-bold">+</button>
                 </div>
@@ -847,25 +1235,18 @@
                 data-action="slider-target" data-id="${pump.instanceId}"
                 value="${pump.target}" />
 
-              <div class="grid grid-cols-4 gap-1 mt-1">
+              <div class="grid grid-cols-4 gap-1 mt-1 mb-2">
                 ${targetPresetsHtml}
               </div>
+
+              <!-- Confirm Concentration Button -->
+              <button type="button" data-action="confirm-ce" data-id="${pump.instanceId}"
+                class="pixel-btn w-full py-1.5 text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 ${hasUnconfirmedChange ? 'bg-[#39ff14] hover:bg-[#4ade80] text-black' : 'bg-[#15803d] hover:bg-[#16a34a] text-white'}">
+                <span>✓</span> 確認濃度 ${!pump.started ? '(啟動計時)' : hasUnconfirmedChange ? `(套用新目標 ${pump.target})` : `(已確認 ${pump.confirmedTarget})`}
+              </button>
             </div>
 
-            <!-- 2. HIGH-VISIBILITY GOLDEN/AMBER RECOMMENDED INFUSION RATE DISPLAY (Moved DOWN) -->
-            <div class="rate-display-box p-3 flex items-center justify-between gap-2">
-              <span class="inline-block bg-[#f59e0b] text-black text-xs font-black px-2 py-0.5 border border-black">
-                ⚡ 建議流速
-              </span>
-              <div class="flex items-baseline gap-1.5">
-                <span class="font-vt text-5xl sm:text-6xl font-black rate-number-glow leading-none">
-                  ${calc.activeMlHr.toFixed(1)}
-                </span>
-                <span class="bg-[#f59e0b] text-black font-pixel-en text-[10px] font-bold px-1.5 py-1 border border-black">
-                  mL/hr
-                </span>
-              </div>
-            </div>
+            ${confirmedDetailsHtml}
 
           </div>
         `;
@@ -924,7 +1305,6 @@
         });
       });
 
-      // Drug selector +/- quantity buttons
       document.getElementById('drugSelectorDock').addEventListener('click', (e) => {
         const btn = e.target.closest('button[data-qty-action]');
         if (!btn) return;
@@ -942,13 +1322,11 @@
         renderDrugSelectorDock();
       });
 
-      // Confirm button -> generate pumps in ACTIVE PUMPS and collapse setup panel
       document.getElementById('btnConfirmPumps').addEventListener('click', () => {
         playBeep(820, 0.08, 'square');
         applyPendingPumpsAndShow();
       });
 
-      // Clear all buttons
       document.getElementById('btnClearAllPumps').addEventListener('click', () => {
         playBeep(280, 0.08, 'sawtooth');
         clearAllPumps();
@@ -958,7 +1336,6 @@
         clearAllPumps();
       });
 
-      // Expand / Collapse Setup Panel
       document.getElementById('btnExpandSetup').addEventListener('click', () => {
         playBeep(520, 0.04);
         state.setupCollapsed = false;
@@ -1011,6 +1388,24 @@
           const next = Math.min(spec.maxTarget, Math.max(spec.minTarget, +(pump.target + delta).toFixed(2)));
           pump.target = next;
           renderAll();
+        } else if (action === 'confirm-ce') {
+          playBeep(780, 0.07, 'square');
+          confirmPumpTarget(pump);
+        } else if (action === 'select-time') {
+          playBeep(580, 0.04);
+          // Fast-forward/sync current stage timer to the clicked checkpoint (e.g., 30m -> 30*60 sec)
+          const targetMin = parseInt(btn.getAttribute('data-min'), 10);
+          pump.stageStartMs = Date.now();
+          pump.stageOffsetSec = targetMin * 60;
+          pump.lastAutoCheckpoint = getAutoCheckpointForMinutes(targetMin);
+          renderAll();
+        } else if (action === 'reset-time') {
+          playBeep(360, 0.05);
+          pump.history = [];
+          pump.stageStartMs = Date.now();
+          pump.stageOffsetSec = 0;
+          pump.lastAutoCheckpoint = 15;
+          renderAll();
         }
       });
 
@@ -1051,9 +1446,9 @@
       });
     }
 
-    // Initialize with empty ACTIVE PUMPS list as requested
     window.addEventListener('DOMContentLoaded', () => {
       setupListeners();
+      startGlobalTicker();
       renderAll();
     });
   </script>
