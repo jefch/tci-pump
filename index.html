@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TCI pump</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0d1117;
+      --panel-bg: #161b22;
+      --pixel-border: #30363d;
+    }
+
+    * {
+      box-sizing: border-box;
+      image-rendering: pixelated;
+    }
+
+    body {
+      background-color: #0b0e14;
+      background-image: 
+        linear-gradient(rgba(18, 24, 38, 0.9) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(18, 24, 38, 0.9) 1px, transparent 1px);
+      background-size: 16px 16px;
+      color: #e6edf3;
+      font-family: 'Noto Sans TC', monospace, sans-serif;
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+    }
+
+    .font-pixel-en {
+      font-family: 'Press Start 2P', 'Noto Sans TC', monospace;
+    }
+
+    .font-vt {
+      font-family: 'VT323', 'Noto Sans TC', monospace;
+    }
+
+    /* 8-bit Box Borders */
+    .pixel-box {
+      background: #161c28;
+      border: 4px solid #3b465e;
+      box-shadow: 
+        inset -4px -4px 0px 0px #0d111a,
+        inset 4px 4px 0px 0px #252f42,
+        5px 5px 0px 0px #05070a;
+    }
+
+    .pixel-btn {
+      border: 3px solid #000;
+      box-shadow: 
+        inset -3px -3px 0px 0px rgba(0,0,0,0.45),
+        inset 3px 3px 0px 0px rgba(255,255,255,0.25),
+        3px 3px 0px 0px #000;
+      transition: transform 0.05s ease, box-shadow 0.05s ease;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .pixel-btn:active {
+      transform: translate(2px, 2px);
+      box-shadow: 
+        inset 2px 2px 0px 0px rgba(0,0,0,0.5),
+        1px 1px 0px 0px #000;
+    }
+
+    /* High-Visibility 8-Bit Rate Readout Box */
+    .rate-display-box {
+      position: relative;
+      background: linear-gradient(135deg, #2b1605 0%, #170d04 55%, #231104 100%);
+      border: 4px solid #f59e0b;
+      box-shadow:
+        inset 0 0 0 2px #78350f,
+        inset 0 0 20px rgba(245, 158, 11, 0.25),
+        0 4px 0 #000;
+    }
+
+    .rate-number-glow {
+      color: #fef08a;
+      text-shadow:
+        0 0 10px rgba(250, 204, 21, 0.75),
+        3px 3px 0px #78350f;
+    }
+
+    /* Custom Range Slider 8-bit */
+    input[type=range].pixel-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 12px;
+      background: #0d131a;
+      border: 3px solid #3b465e;
+      outline: none;
+    }
+
+    input[type=range].pixel-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 22px;
+      height: 24px;
+      background: #f59e0b;
+      border: 3px solid #000;
+      box-shadow: inset -2px -2px 0 #92400e, inset 2px 2px 0 #fde68a;
+      cursor: pointer;
+    }
+
+    input[type=range].pixel-slider::-moz-range-thumb {
+      width: 22px;
+      height: 24px;
+      background: #f59e0b;
+      border: 3px solid #000;
+      box-shadow: inset -2px -2px 0 #92400e, inset 2px 2px 0 #fde68a;
+      cursor: pointer;
+      border-radius: 0;
+    }
+
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-10">
+
+  <!-- TOP HEADER BAR -->
+  <header class="border-b-4 border-[#2b3548] bg-[#111622] px-3 sm:px-5 py-2.5 sticky top-0 z-30 shadow-lg">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-2.5">
+        <!-- 8-Bit Syringe Icon SVG -->
+        <div class="w-9 h-9 bg-[#1c2536] border-2 border-[#f59e0b] flex items-center justify-center shrink-0">
+          <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
+            <rect x="2" y="6" width="8" height="4" fill="#e2e8f0"/>
+            <rect x="3" y="7" width="5" height="2" fill="#fde047"/>
+            <rect x="10" y="7" width="3" height="2" fill="#94a3b8"/>
+            <rect x="13" y="7.5" width="2" height="1" fill="#38bdf8"/>
+            <rect x="0" y="7" width="2" height="2" fill="#64748b"/>
+            <rect x="0" y="5" width="1" height="6" fill="#94a3b8"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="font-pixel-en text-sm sm:text-base text-[#fde047] tracking-wider">TCI pump</h1>
+          <p class="text-[11px] sm:text-xs text-[#94a3b8] leading-tight">無 TCI / BIS 環境專用：輸入基本資料與目標 Ce，即時換算一般 Syringe Pump 建議流速 (mL/hr)</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-1.5 flex-wrap">
+        <button id="btnSoundToggle" type="button" class="pixel-btn bg-[#1f2937] text-[#cbd5e1] text-xs font-bold px-2.5 py-1.5" title="切換 8-bit 按鍵音效">
+          🔇 音效: 關
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-2.5 sm:px-5 pt-3 space-y-3">
+
+    <!-- COMPACT PATIENT & SETUP SUMMARY BAR (Shown when setup is collapsed so user sees ACTIVE PUMPS immediately without scrolling) -->
+    <div id="compactSetupBar" class="hidden pixel-box p-2.5 bg-[#121824] border-[#f59e0b]">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="bg-[#f59e0b] text-black font-bold text-xs px-2 py-0.5 border border-black">病人資料</span>
+          <span id="compactPatientText" class="font-vt text-xl text-[#fde047] tracking-wide">♂ 男 | 50 歲 | 168 cm | 65 kg</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="btnExpandSetup" type="button" class="pixel-btn bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-bold px-3 py-1.5">
+            ⚙️ 修改資料 / 增減藥物
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- COLLAPSIBLE SETUP CONTAINER (PATIENT INFO + DRUG QUANTITY SELECTOR) -->
+    <div id="setupContainer" class="space-y-3">
+
+      <!-- STEP 1: PATIENT DEMOGRAPHICS PANEL (NO BLINKING GREEN LED) -->
+      <section class="pixel-box p-3 sm:p-4">
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="font-pixel-en text-xs text-[#39ff14] tracking-wide">PATIENT // 病人基本資料</h2>
+          <button id="btnCollapseSetupTop" type="button" class="hidden text-xs text-[#94a3b8] hover:text-white underline">
+            收合設定 ▲
+          </button>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+          <!-- Gender -->
+          <div class="bg-[#0f141d] border-2 border-[#2e384d] p-2">
+            <label class="block text-[11px] text-[#94a3b8] font-bold mb-1">性別 (SEX)</label>
+            <div class="grid grid-cols-2 gap-1">
+              <button type="button" id="sexMale" class="pixel-btn py-1 text-xs font-bold bg-[#2563eb] text-white">
+                ♂ 男 (M)
+              </button>
+              <button type="button" id="sexFemale" class="pixel-btn py-1 text-xs font-bold bg-[#1e293b] text-[#94a3b8]">
+                ♀ 女 (F)
+              </button>
+            </div>
+          </div>
+
+          <!-- Age -->
+          <div class="bg-[#0f141d] border-2 border-[#2e384d] p-2">
+            <div class="flex justify-between items-center mb-1">
+              <label for="inputAge" class="text-[11px] text-[#94a3b8] font-bold">年齡</label>
+              <span class="text-[10px] text-[#64748b]">歲</span>
+            </div>
+            <div class="flex items-center gap-1">
+              <button type="button" data-step-target="inputAge" data-step-val="-5" class="pixel-btn bg-[#1e293b] text-white px-2 py-0.5 text-xs font-bold">-5</button>
+              <input id="inputAge" type="number" min="18" max="100" value="50" class="w-full bg-[#060a0f] border-2 border-[#3b465e] text-center font-vt text-xl sm:text-2xl text-[#39ff14] py-0 focus:outline-none focus:border-[#39ff14]" />
+              <button type="button" data-step-target="inputAge" data-step-val="5" class="pixel-btn bg-[#1e293b] text-white px-2 py-0.5 text-xs font-bold">+5</button>
+            </div>
+          </div>
+
+          <!-- Height -->
+          <div class="bg-[#0f141d] border-2 border-[#2e384d] p-2">
+            <div class="flex justify-between items-center mb-1">
+              <label for="inputHeight" class="text-[11px] text-[#94a3b8] font-bold">身高</label>
+              <span class="text-[10px] text-[#64748b]">cm</span>
+            </div>
+            <div class="flex items-center gap-1">
+              <button type="button" data-step-target="inputHeight" data-step-val="-5" class="pixel-btn bg-[#1e293b] text-white px-2 py-0.5 text-xs font-bold">-5</button>
+              <input id="inputHeight" type="number" min="120" max="220" value="168" class="w-full bg-[#060a0f] border-2 border-[#3b465e] text-center font-vt text-xl sm:text-2xl text-[#39ff14] py-0 focus:outline-none focus:border-[#39ff14]" />
+              <button type="button" data-step-target="inputHeight" data-step-val="5" class="pixel-btn bg-[#1e293b] text-white px-2 py-0.5 text-xs font-bold">+5</button>
+            </div>
+          </div>
+
+          <!-- Weight -->
+          <div class="bg-[#0f141d] border-2 border-[#2e384d] p-2">
+            <div class="flex justify-between items-center mb-1">
+              <label for="inputWeight" class="text-[11px] text-[#94a3b8] font-bold">體重</label>
+              <span class="text-[10px] text-[#64748b]">kg</span>
+            </div>
+            <div class="flex items-center gap-1">
+              <button type="button" data-step-target="inputWeight" data-step-val="-5" class="pixel-btn bg-[#1e293b] text-white px-2 py-0.5 text-xs font-bold">-5</button>
+              <input id="inputWeight" type="number" min="30" max="200" value="65" class="w-full bg-[#060a0f] border-2 border-[#3b465e] text-center font-vt text-xl sm:text-2xl text-[#39ff14] py-0 focus:outline-none focus:border-[#39ff14]" />
+              <button type="button" data-step-target="inputWeight" data-step-val="5" class="pixel-btn bg-[#1e293b] text-white px-2 py-0.5 text-xs font-bold">+5</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 2: DRUG SELECTOR DOCK -->
+      <section class="pixel-box p-3 sm:p-4">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+          <div class="flex items-center gap-2">
+            <span class="font-pixel-en text-xs text-[#ffb700]">SELECT DRUG // 選擇藥物與幫浦數量</span>
+            <span id="pendingTotalBadge" class="bg-[#1e293b] border border-[#475569] text-[#fde047] text-xs font-bold px-2 py-0.5">已選 0 台</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2" id="drugSelectorDock">
+          <!-- Populated dynamically from DRUG_CATALOG -->
+        </div>
+
+        <!-- Action Buttons: 全部清空 & 確認 -->
+        <div class="mt-3 pt-3 border-t-2 border-[#263147] flex flex-wrap items-center justify-end gap-2.5">
+          <button id="btnClearAllPumps" type="button" class="pixel-btn bg-[#7f1d1d] hover:bg-[#991b1b] text-[#fecaca] text-xs sm:text-sm font-bold px-4 py-2">
+            全部清空
+          </button>
+          <button id="btnConfirmPumps" type="button" class="pixel-btn bg-[#f59e0b] hover:bg-[#fbbf24] text-black text-xs sm:text-sm font-black px-6 py-2 flex-1 sm:flex-initial justify-center">
+            確認
+          </button>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- STEP 3: ACTIVE TCI PUMP RACK -->
+    <section id="activePumpsSection">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5 px-1">
+        <div class="flex items-center gap-2">
+          <h2 class="font-pixel-en text-xs sm:text-sm text-[#e2e8f0]">ACTIVE PUMPS // 幫浦列表</h2>
+          <span id="activePumpCount" class="bg-[#1e293b] border border-[#475569] text-[#38bdf8] font-vt text-lg px-2 py-0.5">0 台</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="btnClearActiveRack" type="button" class="hidden pixel-btn bg-[#451a1a] hover:bg-[#7f1d1d] text-[#fca5a5] text-xs font-bold px-3 py-1">
+            全部清空
+          </button>
+        </div>
+      </div>
+
+      <!-- Empty State (Initial Screen is Blank / Empty) -->
+      <div id="emptyPumpState" class="pixel-box p-8 sm:p-10 text-center">
+        <div class="font-pixel-en text-sm sm:text-base text-[#94a3b8] mb-1.5">NO ACTIVE PUMPS</div>
+        <p class="text-xs sm:text-sm text-[#64748b]">目前幫浦列表為空白，請於上方選擇藥物數量後點擊「確認」</p>
+      </div>
+
+      <!-- Pump Cards Grid -->
+      <div id="pumpRackGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <!-- Rendered by JS -->
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    // =========================================================================
+    // 8-BIT AUDIO SYNTHESIZER
+    // =========================================================================
+    let soundEnabled = false;
+    let audioCtx = null;
+
+    function playBeep(freq = 520, duration = 0.05, type = 'square') {
+      if (!soundEnabled) return;
+      try {
+        if (!audioCtx) {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (AudioContextClass) audioCtx = new AudioContextClass();
+        }
+        if (!audioCtx) return;
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.06, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {
+        // Ignore audio errors
+      }
+    }
+
+    // =========================================================================
+    // DRUG CATALOG (NO CHINESE DRUG NAMES)
+    // =========================================================================
+    const DRUG_CATALOG = {
+      propofol: {
+        id: 'propofol',
+        name: 'Propofol',
+        isoColor: '#eab308',
+        isoBg: '#422006',
+        isoText: '#fef08a',
+        modelName: 'Schnider',
+        mode: 'tci_ce',
+        concUnit: 'mg/mL',
+        defaultConc: 10,
+        concPresets: [
+          { label: '10', val: 10 }
+        ],
+        targetUnit: 'mcg/mL',
+        defaultTarget: 3.0,
+        minTarget: 0.5,
+        maxTarget: 6.0,
+        stepTarget: 0.2,
+        clinicalPresets: [
+          { label: '1.5', val: 1.5 },
+          { label: '2.5', val: 2.5 },
+          { label: '3.0', val: 3.0 },
+          { label: '4.0', val: 4.0 }
+        ]
+      },
+      remifentanil: {
+        id: 'remifentanil',
+        name: 'Remifentanil',
+        isoColor: '#3b82f6',
+        isoBg: '#172554',
+        isoText: '#bfdbfe',
+        modelName: 'Minto',
+        mode: 'tci_ce',
+        concUnit: 'mcg/mL',
+        defaultConc: 50,
+        concPresets: [
+          { label: '50', val: 50 },
+          { label: '25', val: 25 }
+        ],
+        targetUnit: 'ng/mL',
+        defaultTarget: 3.0,
+        minTarget: 0.5,
+        maxTarget: 8.0,
+        stepTarget: 0.5,
+        clinicalPresets: [
+          { label: '1.5', val: 1.5 },
+          { label: '3.0', val: 3.0 },
+          { label: '4.5', val: 4.5 },
+          { label: '6.0', val: 6.0 }
+        ]
+      },
+      alfentanil: {
+        id: 'alfentanil',
+        name: 'Alfentanil',
+        isoColor: '#0ea5e9',
+        isoBg: '#0c4a6e',
+        isoText: '#bae6fd',
+        modelName: 'Maitre',
+        mode: 'tci_ce',
+        concUnit: 'mcg/mL',
+        defaultConc: 100,
+        concPresets: [
+          { label: '100', val: 100 },
+          { label: '500', val: 500 }
+        ],
+        targetUnit: 'ng/mL',
+        defaultTarget: 100,
+        minTarget: 20,
+        maxTarget: 300,
+        stepTarget: 10,
+        clinicalPresets: [
+          { label: '50', val: 50 },
+          { label: '100', val: 100 },
+          { label: '150', val: 150 },
+          { label: '200', val: 200 }
+        ]
+      },
+      rocuronium: {
+        id: 'rocuronium',
+        name: 'Rocuronium',
+        isoColor: '#ef4444',
+        isoBg: '#450a0a',
+        isoText: '#fecaca',
+        modelName: 'Maintenance',
+        mode: 'nmbd_maint',
+        concUnit: 'mg/mL',
+        defaultConc: 10,
+        concPresets: [
+          { label: '10', val: 10 },
+          { label: '5', val: 5 }
+        ],
+        targetUnit: 'mg/kg/hr',
+        defaultTarget: 0.40,
+        minTarget: 0.15,
+        maxTarget: 0.80,
+        stepTarget: 0.05,
+        clinicalPresets: [
+          { label: '0.3', val: 0.30 },
+          { label: '0.4', val: 0.40 },
+          { label: '0.5', val: 0.50 },
+          { label: '0.6', val: 0.60 }
+        ]
+      },
+      cisatracurium: {
+        id: 'cisatracurium',
+        name: 'Cisatracurium',
+        isoColor: '#f97316',
+        isoBg: '#431407',
+        isoText: '#fed7aa',
+        modelName: 'Maintenance',
+        mode: 'nmbd_maint',
+        concUnit: 'mg/mL',
+        defaultConc: 2,
+        concPresets: [
+          { label: '2', val: 2 },
+          { label: '1', val: 1 }
+        ],
+        targetUnit: 'mcg/kg/min',
+        defaultTarget: 1.5,
+        minTarget: 0.5,
+        maxTarget: 4.0,
+        stepTarget: 0.25,
+        clinicalPresets: [
+          { label: '1.0', val: 1.0 },
+          { label: '1.5', val: 1.5 },
+          { label: '2.0', val: 2.0 },
+          { label: '3.0', val: 3.0 }
+        ]
+      },
+      precedex: {
+        id: 'precedex',
+        name: 'Precedex',
+        isoColor: '#10b981',
+        isoBg: '#064e3b',
+        isoText: '#a7f3d0',
+        modelName: 'Hannivoort',
+        mode: 'tci_ce',
+        concUnit: 'mcg/mL',
+        defaultConc: 4,
+        concPresets: [
+          { label: '4', val: 4 },
+          { label: '8', val: 8 }
+        ],
+        targetUnit: 'ng/mL',
+        defaultTarget: 0.6,
+        minTarget: 0.2,
+        maxTarget: 1.5,
+        stepTarget: 0.1,
+        clinicalPresets: [
+          { label: '0.4', val: 0.4 },
+          { label: '0.6', val: 0.6 },
+          { label: '0.8', val: 0.8 },
+          { label: '1.0', val: 1.0 }
+        ]
+      }
+    };
+
+    // =========================================================================
+    // STATE MANAGEMENT (Initial Active Pumps is EMPTY)
+    // =========================================================================
+    const state = {
+      patient: {
+        sex: 'M',
+        age: 50,
+        height: 168,
+        weight: 65
+      },
+      pendingCounts: {
+        propofol: 0,
+        remifentanil: 0,
+        alfentanil: 0,
+        rocuronium: 0,
+        cisatracurium: 0,
+        precedex: 0
+      },
+      pumps: [],
+      nextInstanceId: 1,
+      setupCollapsed: false
+    };
+
+    // =========================================================================
+    // ANTHROPOMETRIC & PHARMACOKINETIC ENGINE
+    // =========================================================================
+    function getAnthropometrics(p) {
+      let lbmRaw;
+      if (p.sex === 'M') {
+        const peakWeight = (1.10 * p.height * p.height) / 256;
+        const effectiveW = Math.min(p.weight, peakWeight);
+        lbmRaw = 1.10 * effectiveW - 128 * Math.pow(effectiveW / p.height, 2);
+      } else {
+        const peakWeight = (1.07 * p.height * p.height) / 296;
+        const effectiveW = Math.min(p.weight, peakWeight);
+        lbmRaw = 1.07 * effectiveW - 148 * Math.pow(effectiveW / p.height, 2);
+      }
+      const lbm = Math.max(25, lbmRaw);
+      return { lbm };
+    }
+
+    function getPkModelParams(drugId, p, anthro) {
+      const { age, weight, height, sex } = p;
+      const { lbm } = anthro;
+
+      if (drugId === 'propofol') {
+        const V1 = 4.27;
+        const V2 = Math.max(4.0, 18.9 - 0.391 * (age - 53));
+        const V3 = 238.0;
+        const k10 = Math.max(0.10, 0.443 + 0.0107 * (weight - 77) - 0.0159 * (lbm - 59) + 0.0062 * (height - 177));
+        const k12 = Math.max(0.05, 0.302 - 0.0056 * (age - 53));
+        const k13 = 0.196;
+        const k21 = Math.max(0.01, (1.29 - 0.024 * (age - 53)) / V2);
+        const k31 = 0.0035;
+        return { V1, V2, V3, k10, k12, k21, k13, k31 };
+      }
+
+      if (drugId === 'remifentanil') {
+        const V1 = Math.max(2.0, 5.1 - 0.0201 * (age - 40) + 0.072 * (lbm - 55));
+        const V2 = Math.max(3.0, 9.82 - 0.0811 * (age - 40) + 0.108 * (lbm - 55));
+        const V3 = 5.42;
+        const Cl1 = Math.max(0.8, 2.6 - 0.0162 * (age - 40) + 0.0191 * (lbm - 55));
+        const Cl2 = Math.max(0.4, 2.05 - 0.0301 * (age - 40));
+        const Cl3 = Math.max(0.015, 0.076 - 0.00113 * (age - 40));
+        const k10 = Cl1 / V1;
+        const k12 = Cl2 / V1;
+        const k21 = Cl2 / V2;
+        const k13 = Cl3 / V1;
+        const k31 = Cl3 / V3;
+        return { V1, V2, V3, k10, k12, k21, k13, k31 };
+      }
+
+      if (drugId === 'alfentanil') {
+        const V1 = sex === 'F' ? 0.111 * 1.15 * weight : 0.111 * weight;
+        const k12 = 0.104;
+        const k13 = 0.017;
+        const k21 = 0.0673;
+        const k31 = age > 40 ? Math.max(0.004, 0.0126 - 0.000113 * (age - 40)) : 0.0126;
+        const baseCl1 = age > 40 ? Math.max(0.10, 0.356 - 0.00269 * (age - 40)) : 0.356;
+        const Cl1 = baseCl1 * (sex === 'F' ? 1.15 : 1.0) * (weight / 70);
+        const k10 = Cl1 / V1;
+        const V2 = V1 * (k12 / k21);
+        const V3 = V1 * (k13 / k31);
+        return { V1, V2, V3, k10, k12, k21, k13, k31 };
+      }
+
+      if (drugId === 'precedex') {
+        const scaleW = weight / 70.0;
+        const scaleCl = Math.pow(scaleW, 0.75);
+        const V1 = 1.78 * scaleW;
+        const V2 = 30.3 * scaleW;
+        const V3 = 52.0 * scaleW;
+        const Cl1 = 0.686 * scaleCl;
+        const Cl2 = 2.98 * scaleCl;
+        const Cl3 = 0.602 * scaleCl;
+        const k10 = Cl1 / V1;
+        const k12 = Cl2 / V1;
+        const k21 = Cl2 / V2;
+        const k13 = Cl3 / V1;
+        const k31 = Cl3 / V3;
+        return { V1, V2, V3, k10, k12, k21, k13, k31 };
+      }
+
+      return null;
+    }
+
+    function calculatePumpOutput(pump, patient, anthro) {
+      const spec = DRUG_CATALOG[pump.drugId];
+      const conc = Math.max(0.01, parseFloat(pump.conc) || spec.defaultConc);
+      const target = Math.max(0.01, parseFloat(pump.target) || spec.defaultTarget);
+
+      if (spec.mode === 'tci_ce') {
+        const pk = getPkModelParams(pump.drugId, patient, anthro);
+        const centralMass = target * pk.V1;
+        const rateMassPerMin = centralMass * (
+          pk.k10 +
+          pk.k12 * Math.exp(-pk.k21 * 25) +
+          pk.k13 * Math.exp(-pk.k31 * 25)
+        );
+        const activeMlHr = (rateMassPerMin * 60) / conc;
+        return { activeMlHr };
+      } else {
+        let activeMassHr = 0;
+        if (pump.drugId === 'rocuronium') {
+          activeMassHr = target * patient.weight;
+        } else if (pump.drugId === 'cisatracurium') {
+          activeMassHr = (target * patient.weight * 60) / 1000;
+        }
+        const activeMlHr = activeMassHr / conc;
+        return { activeMlHr };
+      }
+    }
+
+    // =========================================================================
+    // PUMP SYNCHRONIZATION & ACTIONS
+    // =========================================================================
+    function applyPendingPumpsAndShow() {
+      const nextPumps = [];
+      Object.keys(DRUG_CATALOG).forEach(drugId => {
+        const desiredCount = state.pendingCounts[drugId] || 0;
+        const existingOfDrug = state.pumps.filter(p => p.drugId === drugId);
+        const spec = DRUG_CATALOG[drugId];
+
+        for (let i = 0; i < desiredCount; i++) {
+          if (i < existingOfDrug.length) {
+            nextPumps.push(existingOfDrug[i]);
+          } else {
+            nextPumps.push({
+              instanceId: state.nextInstanceId++,
+              drugId: spec.id,
+              conc: spec.defaultConc,
+              target: spec.defaultTarget
+            });
+          }
+        }
+      });
+
+      state.pumps = nextPumps;
+      if (state.pumps.length > 0) {
+        state.setupCollapsed = true;
+      }
+      renderAll();
+    }
+
+    function clearAllPumps() {
+      Object.keys(state.pendingCounts).forEach(k => {
+        state.pendingCounts[k] = 0;
+      });
+      state.pumps = [];
+      state.setupCollapsed = false;
+      renderAll();
+    }
+
+    // =========================================================================
+    // UI RENDERING FUNCTIONS
+    // =========================================================================
+    function updateSetupCollapseUI() {
+      const setupContainer = document.getElementById('setupContainer');
+      const compactBar = document.getElementById('compactSetupBar');
+      const collapseTopBtn = document.getElementById('btnCollapseSetupTop');
+      const compactText = document.getElementById('compactPatientText');
+
+      const sexLabel = state.patient.sex === 'M' ? '♂ 男' : '♀ 女';
+      compactText.textContent = `${sexLabel} | ${state.patient.age} 歲 | ${state.patient.height} cm | ${state.patient.weight} kg`;
+
+      if (state.setupCollapsed && state.pumps.length > 0) {
+        setupContainer.classList.add('hidden');
+        compactBar.classList.remove('hidden');
+      } else {
+        setupContainer.classList.remove('hidden');
+        compactBar.classList.add('hidden');
+        if (state.pumps.length > 0) {
+          collapseTopBtn.classList.remove('hidden');
+        } else {
+          collapseTopBtn.classList.add('hidden');
+        }
+      }
+    }
+
+    function renderDrugSelectorDock() {
+      const dock = document.getElementById('drugSelectorDock');
+      dock.innerHTML = '';
+
+      let totalPending = 0;
+      Object.values(state.pendingCounts).forEach(c => { totalPending += c; });
+      document.getElementById('pendingTotalBadge').textContent = `已選 ${totalPending} 台`;
+
+      Object.values(DRUG_CATALOG).forEach(drug => {
+        const count = state.pendingCounts[drug.id] || 0;
+        const card = document.createElement('div');
+        card.className = 'bg-[#121826] border-2 p-2.5 flex flex-col justify-between transition-all';
+        card.style.borderColor = count > 0 ? '#f59e0b' : drug.isoColor;
+        card.style.borderTopWidth = '5px';
+        if (count > 0) {
+          card.style.boxShadow = 'inset 0 0 12px rgba(245, 158, 11, 0.2)';
+        }
+
+        // Drug Name moved to top, Ce/MAINT badge removed
+        card.innerHTML = `
+          <div>
+            <div class="font-bold text-sm sm:text-base text-white truncate">${drug.name}</div>
+            <div class="text-[11px] text-[#94a3b8] font-mono mt-0.5">${drug.defaultConc} ${drug.concUnit}</div>
+          </div>
+
+          <!-- Quantity +/- Controls -->
+          <div class="mt-2.5 pt-2 border-t border-[#263147] flex items-center justify-between gap-1">
+            <button type="button" data-qty-action="dec" data-drug="${drug.id}"
+              class="pixel-btn w-8 h-7 flex items-center justify-center text-sm font-black ${count > 0 ? 'bg-[#7f1d1d] text-white' : 'bg-[#1e293b] text-[#64748b]'}">
+              -
+            </button>
+            <div class="flex-1 text-center font-vt text-2xl font-bold ${count > 0 ? 'text-[#fde047]' : 'text-[#64748b]'}">
+              ${count} <span class="text-xs font-sans">台</span>
+            </div>
+            <button type="button" data-qty-action="inc" data-drug="${drug.id}"
+              class="pixel-btn w-8 h-7 flex items-center justify-center text-sm font-black bg-[#15803d] hover:bg-[#16a34a] text-white">
+              +
+            </button>
+          </div>
+        `;
+
+        dock.appendChild(card);
+      });
+    }
+
+    function updatePatientMonitorUI() {
+      const anthro = getAnthropometrics(state.patient);
+
+      const btnM = document.getElementById('sexMale');
+      const btnF = document.getElementById('sexFemale');
+      if (state.patient.sex === 'M') {
+        btnM.className = 'pixel-btn py-1 text-xs font-bold bg-[#2563eb] text-white';
+        btnF.className = 'pixel-btn py-1 text-xs font-bold bg-[#1e293b] text-[#94a3b8]';
+      } else {
+        btnF.className = 'pixel-btn py-1 text-xs font-bold bg-[#db2777] text-white';
+        btnM.className = 'pixel-btn py-1 text-xs font-bold bg-[#1e293b] text-[#94a3b8]';
+      }
+
+      return anthro;
+    }
+
+    function renderPumpRack(anthro) {
+      const grid = document.getElementById('pumpRackGrid');
+      const emptyState = document.getElementById('emptyPumpState');
+      const countBadge = document.getElementById('activePumpCount');
+      const clearActiveBtn = document.getElementById('btnClearActiveRack');
+
+      countBadge.textContent = `${state.pumps.length} 台`;
+
+      if (state.pumps.length === 0) {
+        grid.innerHTML = '';
+        emptyState.classList.remove('hidden');
+        clearActiveBtn.classList.add('hidden');
+        return;
+      }
+      emptyState.classList.add('hidden');
+      clearActiveBtn.classList.remove('hidden');
+      grid.innerHTML = '';
+
+      state.pumps.forEach((pump, idx) => {
+        const spec = DRUG_CATALOG[pump.drugId];
+        const calc = calculatePumpOutput(pump, state.patient, anthro);
+
+        const card = document.createElement('div');
+        card.className = 'pixel-box flex flex-col justify-between overflow-hidden';
+        card.style.borderTopWidth = '6px';
+        card.style.borderTopColor = spec.isoColor;
+
+        // Concentration Presets HTML (Compact inline next to drug name)
+        const concPresetsHtml = spec.concPresets.map(cp => {
+          const isSelected = Math.abs(pump.conc - cp.val) < 0.001;
+          return `
+            <button type="button" data-action="set-conc" data-id="${pump.instanceId}" data-val="${cp.val}"
+              class="px-1.5 py-0.5 text-[11px] font-bold border ${isSelected ? 'bg-[#fde047] text-black border-black' : 'bg-[#1a2232] text-[#94a3b8] border-[#334155] hover:text-white'}">
+              ${cp.label}
+            </button>
+          `;
+        }).join('');
+
+        // Clinical Target Presets HTML
+        const targetPresetsHtml = spec.clinicalPresets.map(tp => {
+          const isSelected = Math.abs(pump.target - tp.val) < 0.001;
+          return `
+            <button type="button" data-action="set-target" data-id="${pump.instanceId}" data-val="${tp.val}"
+              class="px-2 py-1 text-xs font-bold border ${isSelected ? 'bg-[#38bdf8] text-black border-black' : 'bg-[#141c2b] text-[#cbd5e1] border-[#334155] hover:border-[#38bdf8]'}">
+              ${tp.label}
+            </button>
+          `;
+        }).join('');
+
+        card.innerHTML = `
+          <!-- Pump Top Header Bar: Drug Name + Concentration right beside it -->
+          <div class="px-3 py-2.5 bg-[#101622] border-b-2 border-[#2a3447] flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2 flex-wrap min-w-0">
+              <span class="font-pixel-en text-[11px] px-1.5 py-0.5 border border-black font-bold shrink-0" style="background:${spec.isoColor}; color:#000;">
+                #${idx + 1}
+              </span>
+              <h3 class="font-bold text-base text-white">${spec.name}</h3>
+              <!-- Drug Concentration displayed right beside Drug Name -->
+              <div class="flex items-center gap-1 bg-[#0b0f17] border border-[#2e3a52] px-1.5 py-0.5">
+                ${concPresetsHtml}
+                <input type="number" step="0.5" min="0.1" max="1000"
+                  data-action="input-conc" data-id="${pump.instanceId}"
+                  value="${pump.conc}"
+                  title="自訂藥物濃度"
+                  class="w-12 bg-[#05080c] border border-[#3b465e] text-center font-vt text-base text-[#fde047] px-1 py-0 focus:outline-none focus:border-[#fde047]" />
+                <span class="text-[11px] text-[#94a3b8] font-mono">${spec.concUnit}</span>
+              </div>
+            </div>
+
+            <button type="button" data-action="remove-single-pump" data-id="${pump.instanceId}" title="移除此台幫浦"
+              class="pixel-btn bg-[#451a1a] hover:bg-[#7f1d1d] text-[#fca5a5] text-xs px-2 py-0.5 font-bold shrink-0">
+              ✕
+            </button>
+          </div>
+
+          <!-- Pump Body: 1. Target Ce Controls (Moved UP) -> 2. Recommended Rate Display (Moved DOWN) -->
+          <div class="p-3 flex-1 flex flex-col justify-between space-y-2.5">
+
+            <!-- 1. Target Ce / Target Dose Controls (Moved UP) -->
+            <div class="bg-[#0f1521] border-2 border-[#283347] p-2.5">
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-xs font-bold text-[#e2e8f0]">
+                  🎯 ${spec.mode === 'tci_ce' ? `Ce (${spec.targetUnit})` : `維持劑量 (${spec.targetUnit})`}
+                </span>
+                <div class="flex items-center gap-1">
+                  <button type="button" data-action="step-target" data-id="${pump.instanceId}" data-delta="${-spec.stepTarget}"
+                    class="pixel-btn bg-[#1e293b] text-white px-2.5 py-0.5 text-sm font-bold">-</button>
+                  <input type="number" step="${spec.stepTarget}" min="${spec.minTarget}" max="${spec.maxTarget}"
+                    data-action="input-target" data-id="${pump.instanceId}"
+                    value="${pump.target}"
+                    class="w-18 bg-[#05080d] border-2 border-[#38bdf8] text-center font-vt text-2xl text-[#00f0ff] py-0" />
+                  <button type="button" data-action="step-target" data-id="${pump.instanceId}" data-delta="${spec.stepTarget}"
+                    class="pixel-btn bg-[#1e293b] text-white px-2.5 py-0.5 text-sm font-bold">+</button>
+                </div>
+              </div>
+
+              <input type="range" class="pixel-slider my-1.5"
+                min="${spec.minTarget}" max="${spec.maxTarget}" step="${spec.stepTarget}"
+                data-action="slider-target" data-id="${pump.instanceId}"
+                value="${pump.target}" />
+
+              <div class="grid grid-cols-4 gap-1 mt-1">
+                ${targetPresetsHtml}
+              </div>
+            </div>
+
+            <!-- 2. HIGH-VISIBILITY GOLDEN/AMBER RECOMMENDED INFUSION RATE DISPLAY (Moved DOWN) -->
+            <div class="rate-display-box p-3 flex items-center justify-between gap-2">
+              <span class="inline-block bg-[#f59e0b] text-black text-xs font-black px-2 py-0.5 border border-black">
+                ⚡ 建議流速
+              </span>
+              <div class="flex items-baseline gap-1.5">
+                <span class="font-vt text-5xl sm:text-6xl font-black rate-number-glow leading-none">
+                  ${calc.activeMlHr.toFixed(1)}
+                </span>
+                <span class="bg-[#f59e0b] text-black font-pixel-en text-[10px] font-bold px-1.5 py-1 border border-black">
+                  mL/hr
+                </span>
+              </div>
+            </div>
+
+          </div>
+        `;
+
+        grid.appendChild(card);
+      });
+    }
+
+    function renderAll() {
+      const anthro = updatePatientMonitorUI();
+      updateSetupCollapseUI();
+      renderDrugSelectorDock();
+      renderPumpRack(anthro);
+    }
+
+    // =========================================================================
+    // EVENT DELEGATION & LISTENERS
+    // =========================================================================
+    function setupListeners() {
+      document.getElementById('sexMale').addEventListener('click', () => {
+        playBeep(500, 0.04);
+        state.patient.sex = 'M';
+        renderAll();
+      });
+      document.getElementById('sexFemale').addEventListener('click', () => {
+        playBeep(580, 0.04);
+        state.patient.sex = 'F';
+        renderAll();
+      });
+
+      const bindPatientInput = (id, key, min, max) => {
+        const el = document.getElementById(id);
+        el.addEventListener('input', () => {
+          const val = parseFloat(el.value);
+          if (!isNaN(val)) {
+            state.patient[key] = Math.min(max, Math.max(min, val));
+            renderAll();
+          }
+        });
+      };
+      bindPatientInput('inputAge', 'age', 18, 100);
+      bindPatientInput('inputHeight', 'height', 120, 220);
+      bindPatientInput('inputWeight', 'weight', 30, 200);
+
+      document.querySelectorAll('[data-step-target]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          playBeep(480, 0.04);
+          const targetId = btn.getAttribute('data-step-target');
+          const delta = parseFloat(btn.getAttribute('data-step-val'));
+          const inputEl = document.getElementById(targetId);
+          const min = parseFloat(inputEl.min);
+          const max = parseFloat(inputEl.max);
+          const nextVal = Math.min(max, Math.max(min, (parseFloat(inputEl.value) || 50) + delta));
+          inputEl.value = nextVal;
+          inputEl.dispatchEvent(new Event('input'));
+        });
+      });
+
+      // Drug selector +/- quantity buttons
+      document.getElementById('drugSelectorDock').addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-qty-action]');
+        if (!btn) return;
+        const action = btn.getAttribute('data-qty-action');
+        const drugId = btn.getAttribute('data-drug');
+        const current = state.pendingCounts[drugId] || 0;
+
+        if (action === 'inc') {
+          playBeep(660, 0.05, 'square');
+          state.pendingCounts[drugId] = Math.min(10, current + 1);
+        } else if (action === 'dec') {
+          playBeep(420, 0.05, 'square');
+          state.pendingCounts[drugId] = Math.max(0, current - 1);
+        }
+        renderDrugSelectorDock();
+      });
+
+      // Confirm button -> generate pumps in ACTIVE PUMPS and collapse setup panel
+      document.getElementById('btnConfirmPumps').addEventListener('click', () => {
+        playBeep(820, 0.08, 'square');
+        applyPendingPumpsAndShow();
+      });
+
+      // Clear all buttons
+      document.getElementById('btnClearAllPumps').addEventListener('click', () => {
+        playBeep(280, 0.08, 'sawtooth');
+        clearAllPumps();
+      });
+      document.getElementById('btnClearActiveRack').addEventListener('click', () => {
+        playBeep(280, 0.08, 'sawtooth');
+        clearAllPumps();
+      });
+
+      // Expand / Collapse Setup Panel
+      document.getElementById('btnExpandSetup').addEventListener('click', () => {
+        playBeep(520, 0.04);
+        state.setupCollapsed = false;
+        renderAll();
+      });
+      document.getElementById('btnCollapseSetupTop').addEventListener('click', () => {
+        playBeep(460, 0.04);
+        state.setupCollapsed = true;
+        renderAll();
+      });
+
+      const soundBtn = document.getElementById('btnSoundToggle');
+      soundBtn.addEventListener('click', () => {
+        soundEnabled = !soundEnabled;
+        soundBtn.textContent = soundEnabled ? '🔊 音效: 開' : '🔇 音效: 關';
+        soundBtn.className = soundEnabled
+          ? 'pixel-btn bg-[#14532d] text-[#86efac] text-xs font-bold px-2.5 py-1.5'
+          : 'pixel-btn bg-[#1f2937] text-[#cbd5e1] text-xs font-bold px-2.5 py-1.5';
+        if (soundEnabled) playBeep(880, 0.06);
+      });
+
+      const grid = document.getElementById('pumpRackGrid');
+
+      grid.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        const action = btn.getAttribute('data-action');
+        const id = parseInt(btn.getAttribute('data-id'), 10);
+        const pump = state.pumps.find(p => p.instanceId === id);
+        if (!pump) return;
+        const spec = DRUG_CATALOG[pump.drugId];
+
+        if (action === 'remove-single-pump') {
+          playBeep(320, 0.06, 'sawtooth');
+          state.pumps = state.pumps.filter(p => p.instanceId !== id);
+          state.pendingCounts[pump.drugId] = Math.max(0, (state.pendingCounts[pump.drugId] || 1) - 1);
+          if (state.pumps.length === 0) state.setupCollapsed = false;
+          renderAll();
+        } else if (action === 'set-conc') {
+          playBeep(560, 0.04);
+          pump.conc = parseFloat(btn.getAttribute('data-val'));
+          renderAll();
+        } else if (action === 'set-target') {
+          playBeep(600, 0.04);
+          pump.target = parseFloat(btn.getAttribute('data-val'));
+          renderAll();
+        } else if (action === 'step-target') {
+          playBeep(540, 0.03);
+          const delta = parseFloat(btn.getAttribute('data-delta'));
+          const next = Math.min(spec.maxTarget, Math.max(spec.minTarget, +(pump.target + delta).toFixed(2)));
+          pump.target = next;
+          renderAll();
+        }
+      });
+
+      grid.addEventListener('change', (e) => {
+        const input = e.target.closest('input[data-action]');
+        if (!input) return;
+        const action = input.getAttribute('data-action');
+        const id = parseInt(input.getAttribute('data-id'), 10);
+        const pump = state.pumps.find(p => p.instanceId === id);
+        if (!pump) return;
+
+        if (action === 'input-conc') {
+          const v = parseFloat(input.value);
+          if (!isNaN(v) && v > 0) {
+            pump.conc = v;
+            renderAll();
+          }
+        } else if (action === 'input-target' || action === 'slider-target') {
+          const v = parseFloat(input.value);
+          if (!isNaN(v) && v > 0) {
+            pump.target = v;
+            renderAll();
+          }
+        }
+      });
+
+      grid.addEventListener('input', (e) => {
+        const input = e.target.closest('input[data-action="slider-target"]');
+        if (!input) return;
+        const id = parseInt(input.getAttribute('data-id'), 10);
+        const pump = state.pumps.find(p => p.instanceId === id);
+        if (!pump) return;
+        const v = parseFloat(input.value);
+        if (!isNaN(v)) {
+          pump.target = v;
+          renderAll();
+        }
+      });
+    }
+
+    // Initialize with empty ACTIVE PUMPS list as requested
+    window.addEventListener('DOMContentLoaded', () => {
+      setupListeners();
+      renderAll();
+    });
+  </script>
+</body>
+</html>
